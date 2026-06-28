@@ -1518,6 +1518,9 @@ const MAX_PROJECTILES = 90;
 const WORLD_LIMIT = 6500;
 
 let enemies = [];
+// Lista combinada de enemigos + bosses + minibosses, recalculada una vez
+// por frame en gameLoop (ver allí) en vez de reconstruirse en cada arma.
+let allTargets = [];
 let projectiles = [];
 // Igual que con particles: límite de seguridad para evitar acumulación
 // descontrolada con muchas armas/bosses disparando a la vez.
@@ -2153,7 +2156,7 @@ function updateWeapons(dt) {
       const effRange = def.range + (w.level - 1) * 12;
       w.timer = Math.max(0.2, def.cooldown - (w.level - 1) * 0.06);
       w.swingAngle = 0; w.swinging = 0.25;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < effRange + (e === boss ? boss.radius : 0)) damageEnemy(e, w.damage);
       });
@@ -2163,7 +2166,7 @@ function updateWeapons(dt) {
     if (w.type === 'bolt' && w.timer <= 0) {
       w.timer = Math.max(0.3, def.cooldown - (w.level - 1) * 0.05);
       let nearest = null, nd = Infinity;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < nd) { nd = d; nearest = e; }
       });
@@ -2202,7 +2205,7 @@ function updateWeapons(dt) {
     if (w.type === 'thorns') {
       const effRange = def.range + (w.level - 1) * 10;
       w._thornsRange = effRange;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < effRange) damageEnemy(e, w.damage * dt * 2);
       });
@@ -2223,7 +2226,7 @@ function updateWeapons(dt) {
     if (w.type === 'missile' && w.timer <= 0) {
       w.timer = Math.max(0.5, def.cooldown - (w.level - 1) * 0.12);
       let nearest = null, nd = Infinity;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < nd) { nd = d; nearest = e; }
       });
@@ -2244,7 +2247,7 @@ function updateWeapons(dt) {
     if (w.type === 'whip' && w.timer <= 0) {
       const effRange = def.range + (w.level - 1) * 18;
       w.timer = Math.max(0.3, def.cooldown - (w.level - 1) * 0.05);
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const dy = Math.abs(e.y - player.y);
         const dx = e.x - player.x;
         if (dy < 30 + w.level * 2 && Math.abs(dx) < effRange) damageEnemy(e, w.damage);
@@ -2256,7 +2259,7 @@ function updateWeapons(dt) {
       const effRange = def.range + (w.level - 1) * 14;
       const coneWidth = 0.6 + (w.level - 1) * 0.08;
       w._flameRange = effRange; w._flameCone = coneWidth; w._flameFacing = player.facing;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const dx = e.x - player.x, dyf = e.y - player.y;
         const d = Math.hypot(dx, dyf);
         const angleToE = Math.atan2(dyf, dx);
@@ -2282,7 +2285,7 @@ function updateWeapons(dt) {
       w.timer = Math.max(0.5, def.cooldown - (w.level - 1) * 0.08);
       const effRange = def.range + (w.level - 1) * 10;
       w.swinging = 0.3;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < effRange + (e === boss ? boss.radius : 0)) damageEnemy(e, w.damage);
       });
@@ -2291,7 +2294,7 @@ function updateWeapons(dt) {
 
     if (w.type === 'storm' && w.timer <= 0) {
       w.timer = Math.max(1.0, def.cooldown - (w.level - 1) * 0.15);
-      const targets = [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).filter(e => Math.hypot(e.x - player.x, e.y - player.y) < def.range);
+      const targets = allTargets.filter(e => Math.hypot(e.x - player.x, e.y - player.y) < def.range);
       const numStrikes = Math.min(targets.length, 2 + w.level);
       const shuffled = targets.sort(() => Math.random() - 0.5).slice(0, numStrikes);
       shuffled.forEach(e => {
@@ -2303,7 +2306,7 @@ function updateWeapons(dt) {
     if (w.type === 'spear' && w.timer <= 0) {
       w.timer = Math.max(0.6, def.cooldown - (w.level - 1) * 0.1);
       let nearest = null, nd = Infinity;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < nd) { nd = d; nearest = e; }
       });
@@ -2320,7 +2323,7 @@ function updateWeapons(dt) {
       const bx = player.x + Math.cos(angle) * dist, by = player.y + Math.sin(angle) * dist;
       setTimeout(() => {
         const effRange = def.range + (w.level - 1) * 12;
-        [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+        allTargets.forEach(e => {
           if (Math.hypot(e.x - bx, e.y - by) < effRange) damageEnemy(e, w.damage);
         });
         particles.push({ x: bx, y: by, r: effRange, life: 0.3, maxLife: 0.3, type: 'explosion' });
@@ -2332,7 +2335,7 @@ function updateWeapons(dt) {
     if (w.type === 'crossbow' && w.timer <= 0) {
       w.timer = Math.max(0.25, def.cooldown - (w.level - 1) * 0.03);
       let nearest = null, nd = Infinity;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < nd) { nd = d; nearest = e; }
       });
@@ -2347,7 +2350,7 @@ function updateWeapons(dt) {
       w.timer = Math.max(0.4, def.cooldown - (w.level - 1) * 0.05);
       const effRange = def.range + (w.level - 1) * 10;
       particles.push({ x: player.x, y: player.y, r: effRange, life: 0.2, maxLife: 0.2, type: 'scythe-slash' });
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         if (Math.hypot(e.x - player.x, e.y - player.y) < effRange) {
           if (e.special === 'shielded') e._shieldBroken = true; // el Filo del Vacío ignora escudos
           damageEnemy(e, w.damage);
@@ -2364,7 +2367,7 @@ function updateWeapons(dt) {
           const dist = Math.random() * effRange;
           const tx = player.x + Math.cos(a) * dist, ty = player.y + Math.sin(a) * dist;
           particles.push({ x: tx, y: ty, r: 45, life: 0.5, maxLife: 0.5, type: 'explosion' });
-          [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+          allTargets.forEach(e => {
             if (Math.hypot(e.x - tx, e.y - ty) < 45) damageEnemy(e, w.damage);
           });
         }, i * 150);
@@ -2375,7 +2378,7 @@ function updateWeapons(dt) {
       w.timer = Math.max(0.5, def.cooldown - (w.level - 1) * 0.06);
       const effRange = def.range;
       let nearest = null, nd = Infinity;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < effRange && d < nd) { nd = d; nearest = e; }
       });
@@ -2386,7 +2389,7 @@ function updateWeapons(dt) {
         particles.push({ x: player.x, y: player.y, type: 'whip', r: nd, life: 0.15, maxLife: 0.15 });
         for (let c = 0; c < 2; c++) {
           let next = null, nnd = Infinity;
-          [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+          allTargets.forEach(e => {
             if (hit.includes(e)) return;
             const d = Math.hypot(e.x - chainFrom.x, e.y - chainFrom.y);
             if (d < 160 && d < nnd) { nnd = d; next = e; }
@@ -2404,7 +2407,7 @@ function updateWeapons(dt) {
     if (w.type === 'prism' && w.timer <= 0) {
       w.timer = Math.max(0.4, def.cooldown - (w.level - 1) * 0.04);
       let nearest = null, nd = Infinity;
-      [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+      allTargets.forEach(e => {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < nd) { nd = d; nearest = e; }
       });
@@ -2420,7 +2423,7 @@ function updateWeapons(dt) {
         const a = w.angle + (i / w.count) * Math.PI * 2;
         const ox = player.x + Math.cos(a) * orbitRadius;
         const oy = player.y + Math.sin(a) * orbitRadius;
-        [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+        allTargets.forEach(e => {
           const d = Math.hypot(e.x - ox, e.y - oy);
           if (d < e.radius + 10) damageEnemy(e, w.damage * dt * 3);
         });
@@ -2492,7 +2495,7 @@ function updateMaxCompanion(dt) {
   m.bobPhase += dt * 6;
   const dPlayer = Math.hypot(player.x - m.x, player.y - m.y);
   let target = null, td = Infinity;
-  [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+  allTargets.forEach(e => {
     const d = Math.hypot(e.x - m.x, e.y - m.y);
     if (d < td) { td = d; target = e; }
   });
@@ -2519,7 +2522,7 @@ function updateFoxCompanion(dt) {
   f.dashTimer -= dt;
   const dPlayer = Math.hypot(player.x - f.x, player.y - f.y);
   let target = null, td = Infinity;
-  [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+  allTargets.forEach(e => {
     const d = Math.hypot(e.x - f.x, e.y - f.y);
     if (d < td) { td = d; target = e; }
   });
@@ -2714,13 +2717,13 @@ function updateProjectiles(dt) {
       }
       return;
     }
-    [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e => {
+    allTargets.forEach(e => {
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d < e.radius + 8) {
         if (p.kind === 'missile') {
           if (p.hit) return;
           p.hit = true; p.life = 0;
-          [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean).forEach(e2 => {
+          allTargets.forEach(e2 => {
             if (Math.hypot(e2.x - p.x, e2.y - p.y) < p.explodeRange) damageEnemy(e2, p.damage);
           });
           particles.push({ x: p.x, y: p.y, r: p.explodeRange, life: 0.35, maxLife: 0.35, type: 'explosion' });
@@ -4294,10 +4297,22 @@ function render() {
 
   const gridSize = 64;
   const offX = -camX % gridSize, offY = -camY % gridSize;
+  // Optimización: dentro del área visible de una pantalla, el bioma casi
+  // nunca cambia entre celdas contiguas (las zonas son mucho más grandes
+  // que la pantalla). Cacheamos el último resultado de getBiome y solo
+  // lo recalculamos cuando nos movemos a una celda de mundo distinta,
+  // evitando cientos de Math.hypot innecesarios por frame.
+  let lastTileWx = null, lastTileWy = null, lastTileBiome = null;
   for (let x = offX - gridSize; x < canvas.width + gridSize; x += gridSize) {
     for (let y = offY - gridSize; y < canvas.height + gridSize; y += gridSize) {
       const wx = Math.floor((x + camX) / gridSize), wy = Math.floor((y + camY) / gridSize);
-      const tileBiome = getBiome(x + camX, y + camY);
+      let tileBiome;
+      if (wx === lastTileWx && wy === lastTileWy) {
+        tileBiome = lastTileBiome;
+      } else {
+        tileBiome = getBiome(x + camX, y + camY);
+        lastTileWx = wx; lastTileWy = wy; lastTileBiome = tileBiome;
+      }
       const variant = (wx * 928371 + wy * 12923) % 7;
       ctx.fillStyle = variant === 0 ? tileBiome.floor1 : tileBiome.floor2;
       ctx.fillRect(x, y, gridSize, gridSize);
@@ -5206,9 +5221,15 @@ function gameLoop(now) {
   gameTime += dt;
 
   updatePlayer(dt);
+  // Calculamos la lista de objetivos (enemigos + bosses + minibosses) una
+  // sola vez por frame en vez de reconstruirla en cada arma/compañero por
+  // separado (antes se hacía ~21 veces por frame). Se recalcula tras
+  // updateEnemies porque ahí se eliminan los enemigos muertos.
+  allTargets = [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean);
   updateWeapons(dt);
   updateProjectiles(dt);
   updateEnemies(dt);
+  allTargets = [...enemies, boss, boss2, boss3, boss4, boss5, boss6, boss7, boss8, boss9, boss10, ...miniBosses].filter(Boolean);
   updateXpGems(dt);
   updateParticles(dt);
   updateScreenShake(dt);
