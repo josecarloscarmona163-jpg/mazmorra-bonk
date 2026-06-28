@@ -1511,9 +1511,30 @@ async function shareRunResult() {
 // ============================================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-window.addEventListener('resize', () => { canvas.width = innerWidth; canvas.height = innerHeight; });
+
+// ---------- NITIDEZ EN PANTALLAS DE ALTA DENSIDAD (Retina/móvil) ----------
+// Sin esto, el canvas se renderiza a 1 píxel de buffer por píxel CSS y el
+// navegador lo escala hacia arriba en pantallas de alta densidad (DPR 2-3,
+// la mayoría de móviles), dando una imagen borrosa. Mantenemos
+// canvas.logicalWidth/canvas.logicalHeight como el tamaño LÓGICO en píxeles CSS (para no
+// tener que tocar las ~36 líneas del juego que ya calculan posiciones con
+// ellos) y usamos canvas.style + un ctx.scale para que el buffer real sea
+// más grande, sin que el resto del código note la diferencia.
+function resizeCanvasForDPR() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3); // tope en 3x: más no aporta y sí cuesta rendimiento
+  const cssW = window.innerWidth, cssH = window.innerHeight;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Tamaño lógico (en píxeles CSS) que usa el resto del juego para todos
+  // sus cálculos de centrado, grid, límites de pantalla, etc.
+  canvas.logicalWidth = cssW;
+  canvas.logicalHeight = cssH;
+}
+resizeCanvasForDPR();
+window.addEventListener('resize', resizeCanvasForDPR);
 updateMainMenuStats();
 startMenuPreviewLoop();
 const recovered = applyRecoverySnapshotIfAny();
@@ -4493,24 +4514,24 @@ function render() {
   // actual y del tamaño del canvas, así que se recrean solo cuando cambia
   // uno de los dos, no en cada frame.
   if (!screenGradCache.grad || screenGradCache.biomeName !== biome.name ||
-      screenGradCache.w !== canvas.width || screenGradCache.h !== canvas.height) {
-    const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 50, canvas.width/2, canvas.height/2, canvas.width*0.7);
+      screenGradCache.w !== canvas.logicalWidth || screenGradCache.h !== canvas.logicalHeight) {
+    const grad = ctx.createRadialGradient(canvas.logicalWidth/2, canvas.logicalHeight/2, 50, canvas.logicalWidth/2, canvas.logicalHeight/2, canvas.logicalWidth*0.7);
     grad.addColorStop(0, biome.floor1);
     grad.addColorStop(1, biome.fog);
-    const vgrad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.height*0.3, canvas.width/2, canvas.height/2, canvas.width*0.7);
+    const vgrad = ctx.createRadialGradient(canvas.logicalWidth/2, canvas.logicalHeight/2, canvas.logicalHeight*0.3, canvas.logicalWidth/2, canvas.logicalHeight/2, canvas.logicalWidth*0.7);
     vgrad.addColorStop(0, 'rgba(0,0,0,0)');
     vgrad.addColorStop(1, 'rgba(0,0,0,0.55)');
     screenGradCache.grad = grad;
     screenGradCache.vgrad = vgrad;
     screenGradCache.biomeName = biome.name;
-    screenGradCache.w = canvas.width;
-    screenGradCache.h = canvas.height;
+    screenGradCache.w = canvas.logicalWidth;
+    screenGradCache.h = canvas.logicalHeight;
   }
   ctx.fillStyle = screenGradCache.grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, canvas.logicalWidth, canvas.logicalHeight);
 
-  camX = player.x - canvas.width / 2 + shakeOffsetX;
-  camY = player.y - canvas.height / 2 + shakeOffsetY;
+  camX = player.x - canvas.logicalWidth / 2 + shakeOffsetX;
+  camY = player.y - canvas.logicalHeight / 2 + shakeOffsetY;
 
   const gridSize = 64;
   const offX = -camX % gridSize, offY = -camY % gridSize;
@@ -4520,8 +4541,8 @@ function render() {
   // lo recalculamos cuando nos movemos a una celda de mundo distinta,
   // evitando cientos de Math.hypot innecesarios por frame.
   let lastTileWx = null, lastTileWy = null, lastTileBiome = null;
-  for (let x = offX - gridSize; x < canvas.width + gridSize; x += gridSize) {
-    for (let y = offY - gridSize; y < canvas.height + gridSize; y += gridSize) {
+  for (let x = offX - gridSize; x < canvas.logicalWidth + gridSize; x += gridSize) {
+    for (let y = offY - gridSize; y < canvas.logicalHeight + gridSize; y += gridSize) {
       const wx = Math.floor((x + camX) / gridSize), wy = Math.floor((y + camY) / gridSize);
       let tileBiome;
       if (wx === lastTileWx && wy === lastTileWy) {
@@ -4539,7 +4560,7 @@ function render() {
   }
 
   ctx.fillStyle = screenGradCache.vgrad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, canvas.logicalWidth, canvas.logicalHeight);
 
   // Borde del mundo: una franja de energía sutil que marca el límite del
   // mapa, solo se dibuja si el borde está dentro o cerca de la vista.
@@ -4547,37 +4568,37 @@ function render() {
   const worldTop = -WORLD_LIMIT - camY, worldBottom = WORLD_LIMIT - camY;
   const edgeGlowW = 70;
   ctx.save();
-  if (worldLeft > -edgeGlowW && worldLeft < canvas.width + edgeGlowW) {
+  if (worldLeft > -edgeGlowW && worldLeft < canvas.logicalWidth + edgeGlowW) {
     const eg = ctx.createLinearGradient(worldLeft - edgeGlowW, 0, worldLeft, 0);
     eg.addColorStop(0, 'rgba(232,196,104,0)'); eg.addColorStop(1, 'rgba(232,196,104,0.35)');
     ctx.fillStyle = eg;
-    ctx.fillRect(worldLeft - edgeGlowW, 0, edgeGlowW, canvas.height);
+    ctx.fillRect(worldLeft - edgeGlowW, 0, edgeGlowW, canvas.logicalHeight);
     ctx.strokeStyle = 'rgba(232,196,104,0.6)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(worldLeft, 0); ctx.lineTo(worldLeft, canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(worldLeft, 0); ctx.lineTo(worldLeft, canvas.logicalHeight); ctx.stroke();
   }
-  if (worldRight > -edgeGlowW && worldRight < canvas.width + edgeGlowW) {
+  if (worldRight > -edgeGlowW && worldRight < canvas.logicalWidth + edgeGlowW) {
     const eg = ctx.createLinearGradient(worldRight, 0, worldRight + edgeGlowW, 0);
     eg.addColorStop(0, 'rgba(232,196,104,0.35)'); eg.addColorStop(1, 'rgba(232,196,104,0)');
     ctx.fillStyle = eg;
-    ctx.fillRect(worldRight, 0, edgeGlowW, canvas.height);
+    ctx.fillRect(worldRight, 0, edgeGlowW, canvas.logicalHeight);
     ctx.strokeStyle = 'rgba(232,196,104,0.6)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(worldRight, 0); ctx.lineTo(worldRight, canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(worldRight, 0); ctx.lineTo(worldRight, canvas.logicalHeight); ctx.stroke();
   }
-  if (worldTop > -edgeGlowW && worldTop < canvas.height + edgeGlowW) {
+  if (worldTop > -edgeGlowW && worldTop < canvas.logicalHeight + edgeGlowW) {
     const eg = ctx.createLinearGradient(0, worldTop - edgeGlowW, 0, worldTop);
     eg.addColorStop(0, 'rgba(232,196,104,0)'); eg.addColorStop(1, 'rgba(232,196,104,0.35)');
     ctx.fillStyle = eg;
-    ctx.fillRect(0, worldTop - edgeGlowW, canvas.width, edgeGlowW);
+    ctx.fillRect(0, worldTop - edgeGlowW, canvas.logicalWidth, edgeGlowW);
     ctx.strokeStyle = 'rgba(232,196,104,0.6)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, worldTop); ctx.lineTo(canvas.width, worldTop); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, worldTop); ctx.lineTo(canvas.logicalWidth, worldTop); ctx.stroke();
   }
-  if (worldBottom > -edgeGlowW && worldBottom < canvas.height + edgeGlowW) {
+  if (worldBottom > -edgeGlowW && worldBottom < canvas.logicalHeight + edgeGlowW) {
     const eg = ctx.createLinearGradient(0, worldBottom, 0, worldBottom + edgeGlowW);
     eg.addColorStop(0, 'rgba(232,196,104,0.35)'); eg.addColorStop(1, 'rgba(232,196,104,0)');
     ctx.fillStyle = eg;
-    ctx.fillRect(0, worldBottom, canvas.width, edgeGlowW);
+    ctx.fillRect(0, worldBottom, canvas.logicalWidth, edgeGlowW);
     ctx.strokeStyle = 'rgba(232,196,104,0.6)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, worldBottom); ctx.lineTo(canvas.width, worldBottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, worldBottom); ctx.lineTo(canvas.logicalWidth, worldBottom); ctx.stroke();
   }
   ctx.restore();
 
@@ -4591,7 +4612,7 @@ function render() {
   torches.forEach(t => {
     t.flicker += 0.15;
     const sx = t.x - camX, sy = t.y - camY;
-    if (sx < -100 || sx > canvas.width + 100 || sy < -100 || sy > canvas.height + 100) return;
+    if (sx < -100 || sx > canvas.logicalWidth + 100 || sy < -100 || sy > canvas.logicalHeight + 100) return;
     const tBiome = getBiome(t.x, t.y);
     const flick = Math.sin(t.flicker) * 0.15 + 0.85;
     if (!torchGradientCache[tBiome.accent]) {
@@ -4614,7 +4635,7 @@ function render() {
 
   dustParticles.forEach(p => {
     const sx = p.x - camX, sy = p.y - camY;
-    if (sx < 0 || sx > canvas.width || sy < 0 || sy > canvas.height) return;
+    if (sx < 0 || sx > canvas.logicalWidth || sy < 0 || sy > canvas.logicalHeight) return;
     ctx.fillStyle = `rgba(180,170,140,${0.15 + Math.sin(p.phase)*0.1})`;
     ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI*2); ctx.fill();
   });
@@ -4777,7 +4798,7 @@ function render() {
 
   decorations.forEach(d => {
     const sx = d.x - camX, sy = d.y - camY;
-    if (sx < -40 || sx > canvas.width + 40 || sy < -40 || sy > canvas.height + 40) return;
+    if (sx < -40 || sx > canvas.logicalWidth + 40 || sy < -40 || sy > canvas.logicalHeight + 40) return;
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(d.rot);
@@ -5269,8 +5290,8 @@ function renderBiomeWeather() {
       const seed = i * 137.5;
       const wx = ((seed + t * 30) % 2200) - 1100;
       const wy = ((seed * 1.7 + t * 60) % 2200) - 1100;
-      const sx = wx + canvas.width / 2, sy = wy + canvas.height / 2;
-      if (sx < -10 || sx > canvas.width + 10 || sy < -10 || sy > canvas.height + 10) continue;
+      const sx = wx + canvas.logicalWidth / 2, sy = wy + canvas.logicalHeight / 2;
+      if (sx < -10 || sx > canvas.logicalWidth + 10 || sy < -10 || sy > canvas.logicalHeight + 10) continue;
       ctx.fillStyle = 'rgba(220,240,255,0.55)';
       ctx.beginPath(); ctx.arc(sx, sy, 1.5 + (i % 3) * 0.5, 0, Math.PI * 2); ctx.fill();
     }
@@ -5279,8 +5300,8 @@ function renderBiomeWeather() {
       const seed = i * 211.3;
       const wx = ((seed) % 2000) - 1000;
       const wy = ((seed * 1.3 - t * 50) % 2000 + 2000) % 2000 - 1000;
-      const sx = wx + canvas.width / 2, sy = wy + canvas.height / 2;
-      if (sx < -10 || sx > canvas.width + 10 || sy < -10 || sy > canvas.height + 10) continue;
+      const sx = wx + canvas.logicalWidth / 2, sy = wy + canvas.logicalHeight / 2;
+      if (sx < -10 || sx > canvas.logicalWidth + 10 || sy < -10 || sy > canvas.logicalHeight + 10) continue;
       ctx.fillStyle = `rgba(255,${140 + (i%3)*30},60,${0.4 + Math.sin(t*3+i)*0.2})`;
       ctx.beginPath(); ctx.arc(sx, sy, 1.2, 0, Math.PI * 2); ctx.fill();
     }
@@ -5289,8 +5310,8 @@ function renderBiomeWeather() {
       const seed = i * 173.2;
       const wx = ((seed + Math.sin(t * 0.5 + i) * 60) % 2000) - 1000;
       const wy = ((seed * 1.5 + t * 15) % 2000) - 1000;
-      const sx = wx + canvas.width / 2, sy = wy + canvas.height / 2;
-      if (sx < -10 || sx > canvas.width + 10 || sy < -10 || sy > canvas.height + 10) continue;
+      const sx = wx + canvas.logicalWidth / 2, sy = wy + canvas.logicalHeight / 2;
+      if (sx < -10 || sx > canvas.logicalWidth + 10 || sy < -10 || sy > canvas.logicalHeight + 10) continue;
       ctx.fillStyle = 'rgba(140,220,90,0.4)';
       ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI * 2); ctx.fill();
     }
@@ -5299,8 +5320,8 @@ function renderBiomeWeather() {
       const seed = i * 251.7;
       const wx = ((seed + Math.sin(t * 0.7 + i) * 80) % 1800) - 900;
       const wy = ((seed * 1.9 + Math.cos(t * 0.6 + i) * 80) % 1800) - 900;
-      const sx = wx + canvas.width / 2, sy = wy + canvas.height / 2;
-      if (sx < -10 || sx > canvas.width + 10 || sy < -10 || sy > canvas.height + 10) continue;
+      const sx = wx + canvas.logicalWidth / 2, sy = wy + canvas.logicalHeight / 2;
+      if (sx < -10 || sx > canvas.logicalWidth + 10 || sy < -10 || sy > canvas.logicalHeight + 10) continue;
       const blink = Math.sin(t * 4 + i * 2) * 0.5 + 0.5;
       ctx.fillStyle = `rgba(220,255,120,${blink * 0.7})`;
       ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, Math.PI * 2); ctx.fill();
@@ -5310,8 +5331,8 @@ function renderBiomeWeather() {
       const seed = i * 311.1;
       const wx = ((seed + t * 12) % 2400) - 1200;
       const wy = ((seed * 0.8) % 2400) - 1200;
-      const sx = wx + canvas.width / 2, sy = wy + canvas.height / 2;
-      if (sx < -30 || sx > canvas.width + 30 || sy < -30 || sy > canvas.height + 30) continue;
+      const sx = wx + canvas.logicalWidth / 2, sy = wy + canvas.logicalHeight / 2;
+      if (sx < -30 || sx > canvas.logicalWidth + 30 || sy < -30 || sy > canvas.logicalHeight + 30) continue;
       const fogColor = biome.name === "El Cementerio" ? 'rgba(120,30,30,0.06)' : 'rgba(140,80,200,0.06)';
       ctx.fillStyle = fogColor;
       ctx.beginPath(); ctx.arc(sx, sy, 35, 0, Math.PI * 2); ctx.fill();

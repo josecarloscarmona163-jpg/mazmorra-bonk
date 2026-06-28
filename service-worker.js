@@ -2,7 +2,7 @@
 // Cachea los archivos del juego para que funcione sin conexión
 // y se pueda instalar como app.
 
-const CACHE_NAME = "mazmorra-bonk-v40-perf4-ux";
+const CACHE_NAME = "mazmorra-bonk-v40-dpr1";
 const ASSETS_TO_CACHE = [
   "./index.html",
   "./manifest.json",
